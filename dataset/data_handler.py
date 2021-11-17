@@ -238,11 +238,11 @@ def get_dataloaders(data_handler, ds_train, ds_train_clean, ds_query, ds_db):
     train_tuple, query_tuple, db_tuple = data_handler.load_train_query_db_data()
 
     # train dataloader
-    dataset_triplets = ds_train(*train_tuple, seed=cfg.seed)
+    dataset_triplets = ds_train(*train_tuple, seed=cfg.seed, wrong_noise_caption_prob=cfg.wrong_noise_caption_prob)
     dataloader_train = DataLoader(dataset_triplets, batch_size=cfg.batch_size, shuffle=True)
 
-    # train dataloader
-    dataset_triplets = ds_train_clean(*train_tuple, seed=cfg.seed)
+    # train dataloader clean
+    dataset_triplets = ds_train_clean(*train_tuple, seed=cfg.seed, clean_captions=cfg.clean_captions)
     dataloader_train_clean = DataLoader(dataset_triplets, batch_size=cfg.batch_size, shuffle=True)
 
     # query dataloader

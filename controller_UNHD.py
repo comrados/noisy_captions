@@ -20,7 +20,7 @@ class ControllerUNHD:
         self.since = time.time()
         self.logger = log
         self.cfg = cfg
-        self.path = 'checkpoints/' + '_'.join([self.cfg.dataset, str(self.cfg.hash_dim), self.cfg.tag, str(self.cfg.wrong_noise_caption_prob), self.cfg.preset])
+        self.path = 'checkpoints/' + '_'.join([self.cfg.dataset, str(self.cfg.hash_dim), self.cfg.tag, str(self.cfg.wrong_noise_caption_prob), str(self.cfg.clean_captions), self.cfg.preset])
 
         self.device = torch.device(self.cfg.cuda_device if torch.cuda.is_available() else "cpu")
 
@@ -29,6 +29,7 @@ class ControllerUNHD:
         self.B, self.Hi1, self.Hi2, self.Ht1, self.Ht2 = self.init_hashes()
 
         self.losses = []
+        self.probabs = []
 
         self.maps_max = {'i2t': 0., 't2i': 0., 'i2i': 0., 't2t': 0., 'avg': 0.}
         self.maps = {'i2t': [], 't2i': [], 'i2i': [], 't2t': [], 'avg': []}
@@ -71,8 +72,7 @@ class ControllerUNHD:
         ], lr=self.cfg.lr, weight_decay=0.0005)
 
         optimizer_dis = {
-            'noise': Adam(self.model.noise_dis.parameters(), lr=self.cfg.lr, betas=(0.5, 0.9), weight_decay=0.0001),
-            'hash': Adam(self.model.hash_dis.parameters(), lr=self.cfg.lr, betas=(0.5, 0.9), weight_decay=0.0001)
+            'noise': Adam(self.model.noise_dis.parameters(), lr=self.cfg.lr, betas=(0.5, 0.9), weight_decay=0.0001)
         }
         return optimizer_gen, optimizer_dis
 
@@ -88,22 +88,28 @@ class ControllerUNHD:
 
         e_losses_dict = {'adv': 0., 'bb': 0., 'quant': 0., 'ntxent': 0., 'sum': 0.}
 
-        for i, (dataloader_idx, sample_idxs, img1, img2, txt1, txt2, label) in enumerate(self.dataloader_quadruplets):
+        weights_dict = {'w1_clean': None, 'w2_clean': None, 'w1_noise': None, 'w2_noise': None}
+
+        for i, (dl_idx, sample_idxs, img1, img2, txt1, txt2, label, noise) in enumerate(self.dataloader_quadruplets):
             img1 = img1.to(self.device)  # original images
             img2 = img2.to(self.device)  # augmented images
             txt1 = txt1.to(self.device)  # original texts
             txt2 = txt1.to(self.device)  # augmented texts
             h_img1, h_img2, h_txt1, h_txt2 = self.model(img1, img2, txt1, txt2)
 
-            self.Hi1[dataloader_idx, :] = h_img1
-            self.Hi2[dataloader_idx, :] = h_img2
-            self.Ht1[dataloader_idx, :] = h_txt1
-            self.Ht2[dataloader_idx, :] = h_txt2
+            self.Hi1[dl_idx, :] = h_img1
+            self.Hi2[dl_idx, :] = h_img2
+            self.Ht1[dl_idx, :] = h_txt1
+            self.Ht2[dl_idx, :] = h_txt2
 
-            #current_batch_size = len(dataloader_idx)
-            #self.train_discriminator(h_img1, h_img2, h_txt1, h_txt2, current_batch_size)
+            pairs1 = self.generate_pairs(img1.clone().detach(), txt1.clone().detach())
+            pairs2 = self.generate_pairs(img2.clone().detach(), txt2.clone().detach())
 
-            e_losses_dict = self.train_hash_network(h_img1, h_img2, h_txt1, h_txt2, dataloader_idx, e_losses_dict)
+            w1, w2 = self.generate_pair_weights(pairs1, pairs2)
+
+            weights_dict = self.update_weights_dict(weights_dict, w1, w2, noise)
+
+            e_losses_dict = self.train_hash_network(h_img1, h_img2, h_txt1, h_txt2, dl_idx, e_losses_dict, weights=w1)
 
         self.losses.append(e_losses_dict)
 
@@ -112,49 +118,195 @@ class ControllerUNHD:
 
         self.update_optimizer_params(epoch)
 
+        self.density_plot(epoch, weights_dict)
+
         delta_t = time.time() - t1
-        s = '[{}/{}] Train: {:.3f}s, Losses: A: {adv:10.2f}, BB: {bb:10.2f}, Q: {quant:10.2f}, NTX: {ntxent:10.2f}'
+        s = '[{}/{}] Train: {:.3f}s, Losses: Q: {quant:10.2f}, NTX: {ntxent:10.2f}'
         self.logger.info(s.format(epoch + 1, self.cfg.max_epoch, delta_t, **e_losses_dict))
 
-    def train_discriminator(self, h_img1, h_img2, h_txt1, h_txt2, batch_size):
+    def density_plot(self, epoch, weights_dict):
+        if (epoch + 1) == 55:
+
+            import seaborn as sns
+            import matplotlib.pyplot as plt
+
+            fig = plt.figure(figsize=(6, 6))
+
+            ax = plt.subplot(1, 1, 1)
+
+            sns.distplot(weights_dict['w1_clean'], bins=25, label='clean_captions', ax=ax)
+            sns.distplot(weights_dict['w2_clean'], bins=25, label='clean_aug_captions', ax=ax)
+            sns.distplot(weights_dict['w1_noise'], bins=25, label='noisy_captions', ax=ax)
+            sns.distplot(weights_dict['w2_noise'], bins=25, label='noisy_aug_captions', ax=ax)
+
+            ax.set_xlabel('probability')
+            ax.set_ylabel('frequency')
+
+            plt.legend()
+            noise = str(self.cfg.wrong_noise_caption_prob)
+            clean = str(self.dataloader_quadruplets_clean.dataset.clean_captions)
+            plt.title(' '.join([self.cfg.dataset, 'noise level:', noise, 'clean sapmles: ', clean]))
+            plt.tight_layout()
+
+            print(os.path.join('plots', 'noise_distplot_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean)))
+            plt.savefig(os.path.join('plots', 'noise_distplot_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean)))
+
+            print()
+
+    def update_weights_dict(self, weights_dict, w1, w2, noise):
+        mask_noise = noise.eq(1)
+        mask_clean = noise.eq(0)
+        w1_clean = torch.masked_select(w1, mask_clean).detach()
+        w2_clean = torch.masked_select(w2, mask_clean).detach()
+
+        w1_noise = torch.masked_select(w1, mask_noise).detach()
+        w2_noise = torch.masked_select(w2, mask_noise).detach()
+
+        if weights_dict['w1_clean'] is None:
+            weights_dict['w1_clean'] = w1_clean
+            weights_dict['w2_clean'] = w2_clean
+            weights_dict['w1_noise'] = w1_noise
+            weights_dict['w2_noise'] = w2_noise
+        else:
+            weights_dict['w1_clean'] = torch.hstack([weights_dict['w1_clean'], w1_clean])
+            weights_dict['w2_clean'] = torch.hstack([weights_dict['w2_clean'], w2_clean])
+            weights_dict['w1_noise'] = torch.hstack([weights_dict['w1_noise'], w1_noise])
+            weights_dict['w2_noise'] = torch.hstack([weights_dict['w2_noise'], w2_noise])
+
+        return weights_dict
+
+    def generate_pair_weights(self, *pairs):
+        output = []
+        for pair in pairs:
+            output.append(torch.sigmoid(self.model.discriminate_noise(pair)).detach().cpu())
+        return output
+
+    def train_epoch_clean_data(self, epoch):
+        """
+        Train model for 1 epoch with only clean data
+
+        :param: epoch: current epoch
+        """
+        t1 = time.time()
+
+        self.model.to(self.device).train()
+
+        e_losses_dict = {'adv': 0., 'bb': 0., 'quant': 0., 'ntxent': 0., 'sum': 0.}
+
+        e_probabs_dict = {'r1': None, 'r2': None, 'f1': None, 'f2': None}
+
+        for i, (dl_idx, sample_idxs, img1, img2, txt1, txt2, label, noise) in enumerate(self.dataloader_quadruplets_clean):
+            img1 = img1.to(self.device)  # original images
+            img2 = img2.to(self.device)  # augmented images
+            txt1 = txt1.to(self.device)  # original texts
+            txt2 = txt1.to(self.device)  # augmented texts
+            h_img1, h_img2, h_txt1, h_txt2 = self.model(img1, img2, txt1, txt2)
+
+            real1 = self.generate_pairs(img1.clone().detach(), txt1.clone().detach())
+            real2 = self.generate_pairs(img2.clone().detach(), txt2.clone().detach())
+            fake1 = self.generate_pairs(img1.clone().detach(), txt1.clone().detach(), shuffle_txt=True)
+            fake2 = self.generate_pairs(img2.clone().detach(), txt2.clone().detach(), shuffle_txt=True)
+
+            self.Hi1[dl_idx, :] = h_img1
+            self.Hi2[dl_idx, :] = h_img2
+            self.Ht1[dl_idx, :] = h_txt1
+            self.Ht2[dl_idx, :] = h_txt2
+
+            current_batch_size = len(dl_idx)
+            self.train_discriminator(fake1, fake2, real1, real2, current_batch_size)
+
+            e_probabs_dict = self.update_e_probabs_dict(e_probabs_dict, real1, real2, fake1, fake2)
+            e_losses_dict = self.train_hash_network(h_img1, h_img2, h_txt1, h_txt2, dl_idx, e_losses_dict)
+
+        self.losses.append(e_losses_dict)
+        self.probabs.append(self.calculate_mean_probabs(e_probabs_dict))
+
+        self.B = (((self.Hi1.detach() + self.Hi2.detach()) / 2 +
+                   (self.Ht1.detach() + self.Ht2.detach()) / 2) / 2).sign()
+
+        self.update_optimizer_params(epoch)
+
+        delta_t = time.time() - t1
+        s = '[{}/{}] Train: {:.3f}s, Losses: Q: {quant:10.2f}, NTX: {ntxent:10.2f}'
+        self.logger.info(s.format(epoch + 1, self.cfg.max_epoch, delta_t, **e_losses_dict))
+        s2 = '[{}/{}]: Avg probabilities of real and fakes: R1: {r1:5.3f}, R2: {r2:5.3f}, F1: {f1:5.3f}, F2: {f2:5.3f}'
+        self.logger.info(s2.format(epoch + 1, self.cfg.max_epoch, **self.calculate_mean_probabs(e_probabs_dict)))
+
+    @staticmethod
+    def generate_pairs(img, txt, shuffle_txt=False):
+        if shuffle_txt:
+            perm = torch.randperm(len(txt))
+            return torch.cat((img, txt[perm]), 1)
+        else:
+            return torch.cat((img, txt), 1)
+
+    def update_e_probabs_dict(self, e_probabs_dict, real1, real2, fake1, fake2):
+        r1 = torch.sigmoid(self.model.discriminate_noise(real1)).detach().cpu()
+        r2 = torch.sigmoid(self.model.discriminate_noise(real2)).detach().cpu()
+        f1 = torch.sigmoid(self.model.discriminate_noise(fake1)).detach().cpu()
+        f2 = torch.sigmoid(self.model.discriminate_noise(fake2)).detach().cpu()
+
+        if e_probabs_dict['r1'] is None:
+            e_probabs_dict['r1'] = r1
+            e_probabs_dict['r2'] = r2
+            e_probabs_dict['f1'] = f1
+            e_probabs_dict['f2'] = f2
+        else:
+            e_probabs_dict['r1'] = torch.hstack([e_probabs_dict['r1'], r1])
+            e_probabs_dict['r2'] = torch.hstack([e_probabs_dict['r2'], r2])
+            e_probabs_dict['f1'] = torch.hstack([e_probabs_dict['f1'], f1])
+            e_probabs_dict['f2'] = torch.hstack([e_probabs_dict['f2'], f2])
+
+        return e_probabs_dict
+
+    @staticmethod
+    def calculate_mean_probabs(e_probabs_dict):
+        out = {'r1': None, 'r2': None, 'f1': None, 'f2': None}
+
+        for k in out:
+            out[k] = e_probabs_dict[k].mean().numpy()
+
+        return out
+
+    def train_discriminator(self, f_fake1, f_fake2, f_real1, f_real2, batch_size):
         """
         Train hash discriminator
 
-        :param: h_img1: batch of image hashes #1 (original)
-        :param: h_img2: batch of image hashes #2 (augmented)
-        :param: h_txt1: batch of text hashes #1 (original)
-        :param: h_txt2: batch of text hashes #2 (augmented)
+        :param: f_fake1: batch of fake hashes #1
+        :param: f_fake2: batch of fake hashes #2
+        :param: f_real1: batch of real hashes #1
+        :param: f_real2: batch of real hashes #2
         :param: batch_size: current batch size
         """
-        self.optimizer_dis['hash'].zero_grad()
-        self.train_discriminator_step(h_txt1, h_img1, batch_size)
-        self.train_discriminator_step(h_txt2, h_img2, batch_size)
-        self.optimizer_dis['hash'].step()
+        self.optimizer_dis['noise'].zero_grad()
+        self.train_discriminator_step(f_real1, f_fake1, batch_size)
+        self.train_discriminator_step(f_real2, f_fake2, batch_size)
+        self.optimizer_dis['noise'].step()
 
-    def train_discriminator_step(self, v_m1, v_m2, batch_size):
+    def train_discriminator_step(self, v_real, v_fake, batch_size):
         """
         Train hash discriminator for one step
 
-        :param: v_m1: 'real' samples
-        :param: v_m2: 'fake' samples
+        :param: v_real: 'real' samples
+        :param: v_fake: 'fake' samples
         :param: batch_size: current batch size
         """
-        d_real = self.model.discriminate_hash(v_m1.detach())
+        d_real = self.model.discriminate_noise(v_real.detach())
         d_real = -torch.log(torch.sigmoid(d_real)).mean()
         d_real.backward()
 
         # train with fake (TXT)
-        d_fake = self.model.discriminate_hash(v_m2.detach())
+        d_fake = self.model.discriminate_noise(v_fake.detach())
         d_fake = -torch.log(torch.ones(batch_size).to(self.device) - torch.sigmoid(d_fake)).mean()
         d_fake.backward()
 
         # train with gradient penalty (GP)
 
         # interpolate real and fake data
-        alpha = torch.rand(batch_size, self.cfg.hash_dim).to(self.device)
-        interpolates = alpha * v_m1.detach() + (1 - alpha) * v_m2.detach()
+        alpha = torch.rand(batch_size, self.cfg.noise_dim).to(self.device)
+        interpolates = alpha * v_real.detach() + (1 - alpha) * v_fake.detach()
         interpolates.requires_grad_()
-        disc_interpolates = self.model.discriminate_hash(interpolates)
+        disc_interpolates = self.model.discriminate_noise(interpolates)
         # get gradients with respect to inputs
         gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
                                   grad_outputs=torch.ones(disc_interpolates.size()).to(self.device),
@@ -164,7 +316,7 @@ class ControllerUNHD:
         gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * 10  # 10 is GP hyperparameter
         gradient_penalty.backward()
 
-    def train_hash_network(self, h_img1, h_img2, h_txt1, h_txt2, ind, e_losses_dict):
+    def train_hash_network(self, h_img1, h_img2, h_txt1, h_txt2, ind, e_losses_dict, weights=1):
         """
         Train hashing network
 
@@ -174,10 +326,11 @@ class ControllerUNHD:
         :param: h_txt2: batch of text hashes #2 (augmented)
         :param: ind: indexes of samples in current batch
         :param: e_losses_dict: dictionary with epoch losses
+        :param: weights: weights for pairs (true pair or not)
 
         :returns: updated dictionary with epoch losses
         """
-        err, batch_losses_dict = self.calculate_losses(h_img1, h_img2, h_txt1, h_txt2, ind)
+        err, batch_losses_dict = self.calculate_losses(h_img1, h_img2, h_txt1, h_txt2, ind, weights)
         e_losses_dict = self.update_epoch_losses_dict(e_losses_dict, batch_losses_dict)
 
         self.optimizer_gen.zero_grad()
@@ -186,7 +339,7 @@ class ControllerUNHD:
 
         return e_losses_dict
 
-    def calculate_losses(self, h_img1, h_img2, h_txt1, h_txt2, ind):
+    def calculate_losses(self, h_img1, h_img2, h_txt1, h_txt2, ind, weights):
         """
         Calculate losses
         :param: h_img1: batch of image hashes #1 (original)
@@ -194,22 +347,21 @@ class ControllerUNHD:
         :param: h_txt1: batch of text hashes #1 (original)
         :param: h_txt2: batch of text hashes #2 (augmented)
         :param: ind: indexes of samples in current batch
+        :param: weights: weights for pairs (true pair or not)
 
         :returns: total epoch loss and updated dictionary with epoch losses
         """
 
-        loss_ntxent = self.calc_ntxent_loss(h_img1, h_img2, h_txt1, h_txt2)
-        loss_adv_h = self.calc_adversarial_loss(h_txt1, h_txt2) * self.cfg.alpha
+        loss_ntxent = self.calc_ntxent_loss(h_img1, h_img2, h_txt1, h_txt2, weights)
         loss_quant = self.calc_quantization_loss(h_img1, h_img2, h_txt1, h_txt2, ind) * self.cfg.beta
-        loss_bb = self.calc_bit_balance_loss(h_img1, h_img2, h_txt1, h_txt2) * self.cfg.gamma
 
-        err = loss_ntxent + loss_adv_h + loss_quant + loss_bb
+        err = loss_ntxent + loss_quant
 
-        e_losses = self.get_batch_losses_dict(loss_adv_h, loss_ntxent, loss_quant, loss_bb)
+        e_losses = self.get_batch_losses_dict(loss_ntxent, loss_quant)
 
         return err, e_losses
 
-    def calc_ntxent_loss(self, h_img1, h_img2, h_txt1, h_txt2):
+    def calc_ntxent_loss(self, h_img1, h_img2, h_txt1, h_txt2, weights):
         """
         Calculate NTXent Loss
 
@@ -217,12 +369,18 @@ class ControllerUNHD:
         :param: h_img2: batch of image hashes #2 (augmented)
         :param: h_txt1: batch of text hashes #1 (original)
         :param: h_txt2: batch of text hashes #2 (augmented)
+        :param: weights: weights for pairs (true pair or not)
 
         :returns: NTXent Loss
         """
-        loss_ntxent_inter = self.contr_loss(h_img1, h_txt1, type='cross') * self.cfg.contrastive_weights[0]
-        loss_ntxent_intra_img = self.contr_loss(h_img1, h_img2, type='cross') * self.cfg.contrastive_weights[1]
-        loss_ntxent_intra_txt = self.contr_loss(h_txt1, h_txt2, type='cross') * self.cfg.contrastive_weights[2]
+        if type(weights) is torch.Tensor:
+            intra_ws = float(weights.mean().detach().cpu())
+        else:
+            intra_ws = 1
+
+        loss_ntxent_inter = self.contr_loss(h_img1, h_txt1, weights, type='orig') * self.cfg.contrastive_weights[0]
+        loss_ntxent_intra_img = self.contr_loss(h_img1, h_img2, intra_ws, type='orig') * self.cfg.contrastive_weights[1]
+        loss_ntxent_intra_txt = self.contr_loss(h_txt1, h_txt2, intra_ws, type='orig') * self.cfg.contrastive_weights[2]
         loss_ntxent = loss_ntxent_inter + loss_ntxent_intra_txt + loss_ntxent_intra_img
         return loss_ntxent
 
@@ -281,7 +439,7 @@ class ControllerUNHD:
         return loss_bb
 
     @staticmethod
-    def get_batch_losses_dict(loss_adv_h, loss_ntxent, loss_quant, loss_bb):
+    def get_batch_losses_dict(loss_ntxent, loss_quant):
         """
         Get batch losses dict
 
@@ -292,11 +450,9 @@ class ControllerUNHD:
 
         :returns: batch losses dict
         """
-        b_losses_dict = {'adv': 0., 'bb': 0., 'quant': 0., 'ntxent': 0.}
-        b_losses_dict['adv'] += loss_adv_h.detach().cpu().numpy()
+        b_losses_dict = {'quant': 0., 'ntxent': 0.}
         b_losses_dict['ntxent'] += loss_ntxent.detach().cpu().numpy()
         b_losses_dict['quant'] += loss_quant.detach().cpu().numpy()
-        b_losses_dict['bb'] += loss_bb.detach().cpu().numpy()
         b_losses_dict['sum'] = sum(b_losses_dict.values())
         return b_losses_dict
 
@@ -576,6 +732,7 @@ class ControllerUNHD:
         """
         res = self.maps
         res['losses'] = self.losses
+        res['probabs'] = self.probabs
         write_pickle(os.path.join(self.path, 'train_res_dict.pkl'), res)
 
     def test(self):

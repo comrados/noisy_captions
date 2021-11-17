@@ -1,7 +1,6 @@
 import torch
 import numpy as np
 import random
-from configs.config import cfg
 
 from utils import select_idxs, select_k_idxs_from_pop
 
@@ -120,7 +119,8 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
     Quadruplet dataset sample - img-img-txt-txt
     """
 
-    def __init__(self, images, captions, labels, idxs, captions_aug=None, images_aug=None, seed=42):
+    def __init__(self, images, captions, labels, idxs, captions_aug=None, images_aug=None, seed=42,
+                 wrong_noise_caption_prob=0.5):
         """
         Initialization
 
@@ -129,6 +129,8 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
         :param labels: labels vector
         """
         super().__init__(images, captions, labels, idxs, captions_aug, images_aug, seed)
+
+        self.wrong_noise_caption_prob = wrong_noise_caption_prob
 
         caption_idxs = select_idxs(len(self.captions), 1, 5, seed=self.seed)[0]
         self.captions = self.captions[caption_idxs]
@@ -150,8 +152,10 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
         """
         if index in self.clean_idxs:
             idx_wrong = index
+            noise_token = 0
         else:
             idx_wrong = self.wrong_caption_idxs[index]
+            noise_token = 1
         return (
             index,
             (self.idxs[index], self.idxs[index], self.idxs_cap[index], self.idxs_cap[idx_wrong]),
@@ -159,7 +163,7 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
             torch.from_numpy(self.images_aug[index].astype('float32')),
             torch.from_numpy(self.captions[idx_wrong].astype('float32')),
             torch.from_numpy(self.captions_aug[idx_wrong].astype('float32')),
-            self.labels[index]
+            self.labels[index], noise_token
         )
 
     def generate_wrong_caption_index(self, index):
@@ -177,7 +181,7 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
         idxs = []
         for i in range(len(self.images)):
             roll = random.random()
-            if roll < cfg.wrong_noise_caption_prob:
+            if roll < self.wrong_noise_caption_prob:
                 idxs.append(self.generate_wrong_caption_index(i))
                 self.counter += 1
             else:
@@ -198,7 +202,7 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaptionClean(AbstractDataset):
     Quadruplet dataset sample - img-img-txt-txt
     """
 
-    def __init__(self, images, captions, labels, idxs, captions_aug=None, images_aug=None, seed=42):
+    def __init__(self, images, captions, labels, idxs, captions_aug=None, images_aug=None, seed=42, clean_captions=0.2):
         """
         Initialization
 
@@ -214,7 +218,9 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaptionClean(AbstractDataset):
         self.idxs_cap = self.idxs_cap[caption_idxs]
         self.counter = 0
 
-        self.clean_idxs = select_k_idxs_from_pop(int(len(self.captions) * 0.2), self.captions, seed=self.seed)
+        self.clean_captions = int(len(self.captions) * clean_captions)
+
+        self.clean_idxs = select_k_idxs_from_pop(self.clean_captions, self.captions, seed=self.seed)
 
     def __getitem__(self, index):
         """
@@ -231,7 +237,7 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaptionClean(AbstractDataset):
             torch.from_numpy(self.images_aug[idx_clean].astype('float32')),
             torch.from_numpy(self.captions[idx_clean].astype('float32')),
             torch.from_numpy(self.captions_aug[idx_clean].astype('float32')),
-            self.labels[index]
+            self.labels[index], 0
         )
 
     def __len__(self):

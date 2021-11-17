@@ -7,7 +7,7 @@ parser.add_argument('--bit', default=64, help='hash bit', type=int)
 parser.add_argument('--model', default='UNHD', help='model type', type=str)
 parser.add_argument('--epochs', default=100, help='training epochs', type=int)
 parser.add_argument('--tag', default='test', help='model tag', type=str)
-parser.add_argument('--dataset', default='ucm', help='ucm or rsicd', type=str)
+parser.add_argument('--dataset', default='rsicd', help='ucm or rsicd', type=str)
 parser.add_argument('--preset', default='clean', help='data presets, see available in config.py', type=str)
 parser.add_argument('--alpha', default=0, help='alpha hyperparameter (La)', type=float)
 parser.add_argument('--beta', default=0.001, help='beta hyperparameter (Lq)', type=float)
@@ -17,7 +17,9 @@ parser.add_argument('--contrastive-weights', default=[1.0, 0.0, 0.0], type=float
 
 parser.add_argument('--img-aug-emb', default=None, type=str, help='overrides augmented image embeddings file (u-curve)')
 parser.add_argument('--txt-aug-emb', default=None, type=str, help='overrides augmented text embeddings file (noise)')
+
 parser.add_argument('--noise-wrong-caption', default=.5, type=float, help="probability of 'wrong caption' noise")
+parser.add_argument('--clean-captions', default=.2, type=float, help="amount of free captions in dataset")
 
 args = parser.parse_args()
 
@@ -29,7 +31,7 @@ beta = args.beta
 gamma = args.gamma
 contrastive_weights = args.contrastive_weights
 wrong_noise_caption_prob = args.noise_wrong_caption
-
+clean_captions = args.clean_captions
 
 class ConfigModel(BaseConfig):
     preset = preset.lower()
@@ -73,6 +75,7 @@ class ConfigModel(BaseConfig):
     build_plots = False
 
     wrong_noise_caption_prob = wrong_noise_caption_prob
+    clean_captions = clean_captions
 
     model_type = 'UNHD'
     batch_size = 256
@@ -80,8 +83,10 @@ class ConfigModel(BaseConfig):
     text_dim = 768
     hidden_dim = 1024 * 4
     hash_dim = 128
+    noise_dim = image_dim + text_dim
 
     lr = 0.0001
+    clean_epochs = 50
     max_epoch = 100
     valid = True  # validation
     valid_freq = 100  # validation frequency (epochs)

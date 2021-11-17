@@ -28,7 +28,7 @@ class NTXentLoss(nn.Module):
         else:
             raise Exception("Wrong NTXent loss type, must be: 'cross', 'orig' or 'both'")
 
-    def forward_cross_modal(self, mod1, mod2):
+    def forward_cross_modal(self, mod1, mod2, weights):
         """
         Cross-modal case:
 
@@ -60,6 +60,7 @@ class NTXentLoss(nn.Module):
 
         :param: mod1: features of the 1st modality
         :param: mod1: features of the 2nd modality
+        :param: weights: weights for pairs
         :return: NTXent loss
 
         """
@@ -89,10 +90,15 @@ class NTXentLoss(nn.Module):
         pos = torch.exp(torch.sum(mod1 * mod2, dim=-1) / self.temperature)
         pos = torch.cat([pos, pos], dim=0)
 
-        loss = -torch.log(pos / (neg + self.eps)).sum()
+        if type(weights) is torch.Tensor:
+            ws = torch.cat([weights, weights], dim=0)
+        else:
+            ws = weights
+
+        loss = (-torch.log(pos / (neg + self.eps)) * ws).sum()
         return loss
 
-    def forward_orig(self, out_1, out_2):
+    def forward_orig(self, out_1, out_2, weights):
         """
         Implementation taken from:
         https://github.com/PyTorchLightning/lightning-bolts/blob/master/pl_bolts/models/self_supervised/simclr/simclr_module.py
@@ -124,6 +130,7 @@ class NTXentLoss(nn.Module):
 
         :param out_1: input feature vector i
         :param out_2: input feature vector t
+        :param: weights: weights for pairs
         :return: NTXent loss
         """
         out_1 = F.normalize(out_1)
@@ -145,5 +152,10 @@ class NTXentLoss(nn.Module):
         pos = torch.exp(torch.sum(out_1 * out_2, dim=-1) / self.temperature)
         pos = torch.cat([pos, pos], dim=0)
 
-        loss = -torch.log(pos / (neg + self.eps)).sum()
+        if type(weights) is torch.Tensor:
+            ws = torch.cat([weights, weights], dim=0).to(pos.device)
+        else:
+            ws = weights
+
+        loss = (-torch.log(pos / (neg + self.eps)) * ws).sum()
         return loss

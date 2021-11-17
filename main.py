@@ -29,8 +29,11 @@ def main():
         controller.test()
     else:
         for epoch in range(cfg.max_epoch):
-            controller.train_epoch(epoch)
-            if ((epoch + 1) % cfg.valid_freq == 0) and cfg.valid:
+            if epoch < cfg.clean_epochs:
+                controller.train_epoch_clean_data(epoch)
+            else:
+                controller.train_epoch(epoch)
+            if (((epoch + 1) % cfg.valid_freq == 0) or ((epoch + 1) == cfg.clean_epochs)) and cfg.valid:
                 controller.eval(epoch)
             # save the model
             if epoch + 1 == cfg.max_epoch:

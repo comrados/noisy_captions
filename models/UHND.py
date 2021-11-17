@@ -11,15 +11,7 @@ class UNHD(nn.Module):
         self.text_dim = text_dim
         self.hidden_dim = hidden_dim
         self.hash_dim = hash_dim
-
-        self.image_module_ = nn.Sequential(
-            nn.Linear(image_dim, hash_dim, bias=True),
-            nn.Tanh()
-        )
-        self.text_module_ = nn.Sequential(
-            nn.Linear(text_dim, hash_dim, bias=True),
-            nn.Tanh()
-        )
+        self.noise_dim = self.image_dim + self.text_dim
 
         self.image_module = nn.Sequential(
             nn.Linear(image_dim, hidden_dim, bias=True),
@@ -36,48 +28,15 @@ class UNHD(nn.Module):
             nn.Tanh()
         )
 
-        self.image_module_ = nn.Sequential(
-            nn.Linear(image_dim, hidden_dim, bias=True),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(hidden_dim, hidden_dim // 2, bias=True),
-            nn.BatchNorm1d(hidden_dim // 2),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(hidden_dim // 2, hash_dim, bias=True),
-            nn.Tanh()
-        )
-        self.text_module_ = nn.Sequential(
-            nn.Linear(text_dim, hidden_dim, bias=True),
-            nn.BatchNorm1d(hidden_dim),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(hidden_dim, hidden_dim // 2, bias=True),
-            nn.BatchNorm1d(hidden_dim // 2),
-            nn.ReLU(True),
-            nn.Dropout(0.5),
-            nn.Linear(hidden_dim // 2, hash_dim, bias=True),
-            nn.Tanh()
-        )
-
-        # hash discriminator
-        self.hash_dis = nn.Sequential(
-            nn.Linear(self.hash_dim, self.hash_dim * 2, bias=True),
-            nn.BatchNorm1d(self.hash_dim * 2),
-            nn.ReLU(True),
-            nn.Linear(self.hash_dim * 2, 1, bias=True)
-        )
-
         # noise discriminator
         self.noise_dis = nn.Sequential(
-            nn.Linear(self.hash_dim * 2, self.hash_dim * 2, bias=True),
-            nn.BatchNorm1d(self.hash_dim * 2),
+            nn.Linear(self.noise_dim, self.noise_dim * 2, bias=True),
+            nn.BatchNorm1d(self.noise_dim * 2),
             nn.ReLU(True),
-            nn.Linear(self.hash_dim * 2, self.hash_dim, bias=True),
-            nn.BatchNorm1d(self.hash_dim),
+            nn.Linear(self.noise_dim * 2, self.noise_dim, bias=True),
+            nn.BatchNorm1d(self.noise_dim),
             nn.ReLU(True),
-            nn.Linear(self.hash_dim, 1, bias=True)
+            nn.Linear(self.noise_dim, 1, bias=True)
         )
 
     def forward(self, *args):
@@ -131,5 +90,5 @@ class UNHD(nn.Module):
                 torch.save(self.state_dict(), os.path.join(path, name))
         return name
 
-    def discriminate_hash(self, h):
-        return self.hash_dis(h).squeeze()
+    def discriminate_noise(self, h):
+        return self.noise_dis(h).squeeze()
