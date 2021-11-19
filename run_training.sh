@@ -1,6 +1,7 @@
 probs=(0.0 0.1 0.2 0.3 0.4 0.5)
 cleans=(0.1 0.2 0.3)
 
+
 for j in "${cleans[@]}"
   do
     for i in "${probs[@]}"

@@ -20,6 +20,7 @@ parser.add_argument('--txt-aug-emb', default=None, type=str, help='overrides aug
 
 parser.add_argument('--noise-wrong-caption', default=.5, type=float, help="probability of 'wrong caption' noise")
 parser.add_argument('--clean-captions', default=.2, type=float, help="amount of free captions in dataset")
+parser.add_argument('--noise-weights', default='ones', type=str, choices=['normal', 'exp', 'dis', 'ones'], help="amount of free captions in dataset")
 
 args = parser.parse_args()
 
@@ -32,6 +33,8 @@ gamma = args.gamma
 contrastive_weights = args.contrastive_weights
 wrong_noise_caption_prob = args.noise_wrong_caption
 clean_captions = args.clean_captions
+noise_weights = args.noise_weights
+
 
 class ConfigModel(BaseConfig):
     preset = preset.lower()
@@ -76,6 +79,7 @@ class ConfigModel(BaseConfig):
 
     wrong_noise_caption_prob = wrong_noise_caption_prob
     clean_captions = clean_captions
+    noise_weights = noise_weights
 
     model_type = 'UNHD'
     batch_size = 256

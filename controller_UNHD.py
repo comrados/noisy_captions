@@ -105,7 +105,9 @@ class ControllerUNHD:
             pairs1 = self.generate_pairs(img1.clone().detach(), txt1.clone().detach())
             pairs2 = self.generate_pairs(img2.clone().detach(), txt2.clone().detach())
 
-            w1, w2 = self.generate_pair_weights(pairs1, pairs2)
+            noise_weights_dict = self.generate_pair_weights(pairs1, pairs2)
+
+            w1, w2 = noise_weights_dict[self.cfg.noise_weights]
 
             weights_dict = self.update_weights_dict(weights_dict, w1, w2, noise)
 
@@ -179,7 +181,18 @@ class ControllerUNHD:
         output = []
         for pair in pairs:
             output.append(torch.sigmoid(self.model.discriminate_noise(pair)).detach().cpu())
-        return output
+
+        # exponentiated weights
+        output_pow = [torch.abs(torch.pow(x, 3)) for x in output]
+
+        # discrete weights
+        threshold = (self.probabs[-1]['r1'] + self.probabs[-1]['f1']) / 2
+        output_dis = [x.gt(threshold).type(torch.float) for x in output]
+
+        # 1 weights
+        output_ones = [torch.ones_like(x) for x in output]
+
+        return {'normal': output, 'exp': output_pow, 'dis': output_dis, 'ones': output_ones}
 
     def train_epoch_clean_data(self, epoch):
         """
