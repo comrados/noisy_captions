@@ -5,9 +5,9 @@ parser = argparse.ArgumentParser(description='')
 parser.add_argument('--test', default=False, help='train or test', action='store_true')
 parser.add_argument('--bit', default=64, help='hash bit', type=int)
 parser.add_argument('--model', default='UNHD', help='model type', type=str)
-parser.add_argument('--epochs', default=100, help='training epochs', type=int)
+parser.add_argument('--epochs', default=150, help='training epochs', type=int)
 parser.add_argument('--tag', default='test', help='model tag', type=str)
-parser.add_argument('--dataset', default='rsicd', help='ucm or rsicd', type=str)
+parser.add_argument('--dataset', default='ucm', help='ucm or rsicd', type=str)
 parser.add_argument('--preset', default='clean', help='data presets, see available in config.py', type=str)
 parser.add_argument('--alpha', default=0, help='alpha hyperparameter (La)', type=float)
 parser.add_argument('--beta', default=0.001, help='beta hyperparameter (Lq)', type=float)
@@ -20,7 +20,8 @@ parser.add_argument('--txt-aug-emb', default=None, type=str, help='overrides aug
 
 parser.add_argument('--noise-wrong-caption', default=.5, type=float, help="probability of 'wrong caption' noise")
 parser.add_argument('--clean-captions', default=.2, type=float, help="amount of free captions in dataset")
-parser.add_argument('--noise-weights', default='ones', type=str, choices=['normal', 'exp', 'dis', 'ones'], help="amount of free captions in dataset")
+parser.add_argument('--noise-weights', default='normal', type=str, choices=['normal', 'exp', 'dis', 'ones'], help="amount of free captions in dataset")
+parser.add_argument('--clean-epochs', default=75, help='number of clean epochs', type=int)
 
 args = parser.parse_args()
 
@@ -34,6 +35,7 @@ contrastive_weights = args.contrastive_weights
 wrong_noise_caption_prob = args.noise_wrong_caption
 clean_captions = args.clean_captions
 noise_weights = args.noise_weights
+clean_epochs = args.clean_epochs
 
 
 class ConfigModel(BaseConfig):
@@ -90,10 +92,10 @@ class ConfigModel(BaseConfig):
     noise_dim = image_dim + text_dim
 
     lr = 0.0001
-    clean_epochs = 50
+    clean_epochs = clean_epochs
     max_epoch = 100
     valid = True  # validation
-    valid_freq = 100  # validation frequency (epochs)
+    valid_freq = 150  # validation frequency (epochs)
     alpha = alpha  # adv loss
     beta = beta  # quant loss
     gamma = gamma  # bb loss

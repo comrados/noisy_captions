@@ -30,12 +30,18 @@ class UNHD(nn.Module):
 
         # noise discriminator
         self.noise_dis = nn.Sequential(
-            nn.Linear(self.noise_dim, self.noise_dim * 2, bias=True),
-            nn.BatchNorm1d(self.noise_dim * 2),
+            nn.Linear(self.noise_dim, self.noise_dim, bias=True),
+            #nn.BatchNorm1d(self.noise_dim),
             nn.ReLU(True),
-            nn.Linear(self.noise_dim * 2, self.noise_dim, bias=True),
-            nn.BatchNorm1d(self.noise_dim),
+            nn.Dropout(0.2),
+            nn.Linear(self.noise_dim, self.noise_dim, bias=True),
+            #nn.BatchNorm1d(self.noise_dim),
             nn.ReLU(True),
+            nn.Dropout(0.2),
+            nn.Linear(self.noise_dim, self.noise_dim, bias=True),
+            #nn.BatchNorm1d(self.noise_dim),
+            nn.ReLU(True),
+            nn.Dropout(0.2),
             nn.Linear(self.noise_dim, 1, bias=True)
         )
 

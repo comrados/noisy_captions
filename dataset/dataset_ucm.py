@@ -138,7 +138,7 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
         self.idxs_cap = self.idxs_cap[caption_idxs]
         self.counter = 0
 
-        self.wrong_caption_idxs = self.get_wrong_caption_indexes()
+        self.wrong_caption_idxs, self.wrong_caption_idxs_mask = self.get_wrong_caption_indexes()
         self.clean_idxs = select_k_idxs_from_pop(int(len(self.captions) * 0.2), self.captions, seed=self.seed)
 
         self.print_counter()
@@ -153,17 +153,24 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
         if index in self.clean_idxs:
             idx_wrong = index
             noise_token = 0
+            meta_token = 1
         else:
             idx_wrong = self.wrong_caption_idxs[index]
-            noise_token = 1
+            if self.wrong_caption_idxs_mask[index] == 1:
+                noise_token = 1
+            else:
+                noise_token = 0
+            meta_token = 0
         return (
             index,
-            (self.idxs[index], self.idxs[index], self.idxs_cap[index], self.idxs_cap[idx_wrong]),
+            (self.idxs[index], self.idxs[index], self.idxs_cap[idx_wrong], self.idxs_cap[idx_wrong]),
             torch.from_numpy(self.images[index].astype('float32')),
             torch.from_numpy(self.images_aug[index].astype('float32')),
             torch.from_numpy(self.captions[idx_wrong].astype('float32')),
             torch.from_numpy(self.captions_aug[idx_wrong].astype('float32')),
-            self.labels[index], noise_token
+            self.labels[index],
+            noise_token,
+            meta_token
         )
 
     def generate_wrong_caption_index(self, index):
@@ -179,14 +186,17 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
 
     def get_wrong_caption_indexes(self):
         idxs = []
+        idx_mask = []
         for i in range(len(self.images)):
             roll = random.random()
             if roll < self.wrong_noise_caption_prob:
                 idxs.append(self.generate_wrong_caption_index(i))
                 self.counter += 1
+                idx_mask.append(1)
             else:
                 idxs.append(i)
-        return idxs
+                idx_mask.append(0)
+        return idxs, idx_mask
 
     def print_counter(self):
         print("Replaced captions: {}/{}".format(self.counter, len(self.images)))
@@ -237,7 +247,7 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaptionClean(AbstractDataset):
             torch.from_numpy(self.images_aug[idx_clean].astype('float32')),
             torch.from_numpy(self.captions[idx_clean].astype('float32')),
             torch.from_numpy(self.captions_aug[idx_clean].astype('float32')),
-            self.labels[index], 0
+            self.labels[index], 0, 1
         )
 
     def __len__(self):
