@@ -17,25 +17,30 @@ clean = 0.2 if dataset == 'rsicd' else 0.3
 probs = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5]
 
 bit = 64
-tags = ['default', 'default', 'default', 'default', 'default_baseline']
-weights = ['normal', 'exp', 'dis', 'ones', 'ones']
-weight_names = ['normal_weights', 'exponential_weights', 'discrete_weights', 'no_noise_reduction', 'baseline']
+models = ['duch', 'duch', 'duch', 'duch', 'duch', 'jdsh', 'djsrh']
+tags = ['default', 'default', 'default', 'default', 'default_baseline', 'noisy', 'noisy']
+weights = ['normal', 'exp', 'dis', 'ones', 'ones', 'normal', 'normal']
+weight_names = ['normal_weights', 'exponential_weights', 'discrete_weights', 'no_noise_reduction', 'baseline', 'jdsh', 'djsrh']
 
 map_names = ['i2t', 't2i']  # ['i2t', 't2i', 'i2i', 't2t']  # ['i2t', 't2i', 'i2i', 't2t', 'avg']
 experimnet_names = ['k', 'k', 'k', 'hr', 'hr']
 experiment_val = [5, 10, 20, 0, 5]
 
-paths = {'unhd': r'/home/george/Code/noisy_captions/checkpoints'}
+paths = {'duch': r'/home/george/Code/noisy_captions/checkpoints',
+         'jdsh': r'/home/george/Code/jdsh_noisy/checkpoints',
+         'djsrh': r'/home/george/Code/jdsh_noisy/checkpoints'}
 
 data = {}
 
 # read data
-for weight, tag in zip(weights, tags):
+for weight, tag, model in zip(weights, tags, models):
     for prob in probs:
-        token = weight + str(prob) + tag
-        folder = '_'.join([dataset, str(bit), tag, str(prob), str(clean), weight])
-        data[token] = open_pkl(os.path.join(paths['unhd'], folder, 'maps_eval.pkl'))
-
+        token = model + weight + str(prob) + tag
+        if model == 'duch':
+            folder = '_'.join([dataset, str(bit), tag, str(prob), str(clean), weight])
+        if model in ['jdsh', 'djsrh']:
+            folder = '_'.join([model, str(bit), dataset, tag, weight, str(prob)]).upper()
+        data[token] = open_pkl(os.path.join(paths[model], folder, 'maps_eval.pkl'))
 
 final_table = [['probs'] + probs]
 
@@ -49,10 +54,10 @@ for i, map in enumerate(map_names):
 
     final_table.append([map])
 
-    for weight, weight_name, tag in zip(weights, weight_names, tags):
+    for weight, weight_name, tag, model in zip(weights, weight_names, tags, models):
         y = []
         for prob in probs:
-            token = weight + str(prob) + tag
+            token = model + weight + str(prob) + tag
             y.append(data[token][2][i])
 
         ax.plot(probs, y, label=weight_name)
