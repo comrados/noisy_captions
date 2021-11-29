@@ -130,6 +130,13 @@ class ControllerUNHD:
         self.logger.info(s.format(epoch + 1, self.cfg.max_epoch, delta_t, **e_losses_dict))
 
     def density_plot(self, epoch, weights_dict):
+        """
+        build weights distribution density plot
+
+        :param epoch: epoch
+        :param weights_dict:  dictionary
+        :return:
+        """
         if (epoch + 1) == self.cfg.clean_epochs + 3:
 
             import seaborn as sns
@@ -155,11 +162,22 @@ class ControllerUNHD:
 
             print(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights)))
             plt.savefig(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights)))
-
-            print()
+            plt.savefig(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}.pdf'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights)))
 
     @staticmethod
     def update_weights_dict(weights_dict, weights_meta_dict, w1, w2, noise, meta):
+        """
+        put new values or initialize weights dict
+
+        :param weights_dict:
+        :param weights_meta_dict:
+        :param w1:
+        :param w2:
+        :param noise:
+        :param meta:
+        :return:
+        """
+
         mask_noise = noise.eq(1)
         mask_clean = noise.eq(0)
         w1_clean = torch.masked_select(w1, mask_clean).detach()
@@ -191,6 +209,13 @@ class ControllerUNHD:
         return weights_dict
 
     def generate_pair_weights(self, *pairs):
+        """
+        generate weights for feature pairs
+
+        :param pairs: img-txt joint-pairs
+        :return:
+        """
+
         output = []
         for pair in pairs:
             output.append(torch.sigmoid(self.model.discriminate_noise(pair)).detach().cpu())
@@ -274,10 +299,26 @@ class ControllerUNHD:
 
     @staticmethod
     def generate_pairs(img, txt):
+        """
+        combine features into pairs (joint-pairs)
+
+        :param img: feature img
+        :param txt: feature txt
+        :return:
+        """
         return torch.cat((img, txt), 1)
 
     @staticmethod
     def generate_fake_pairs(img, txt, label):
+        """
+        generate fake img-txt feature pairs by combining non-corresponding img and txt features
+
+        :param img: img features
+        :param txt: txt features
+        :param label: labels (for class checking)
+        :return:
+        """
+
         # same randomizer like in Dataset
         perm = []
         for i in range(len(txt)):
@@ -292,6 +333,16 @@ class ControllerUNHD:
         return torch.cat((img, txt[perm]), 1)
 
     def update_e_probabs_dict(self, e_probabs_dict, real1, real2, fake1, fake2):
+        """
+        update or init probabilities (pair weights) dictionary for epoch
+
+        :param e_probabs_dict:
+        :param real1:
+        :param real2:
+        :param fake1:
+        :param fake2:
+        :return:
+        """
         r1 = torch.sigmoid(self.model.discriminate_noise(real1)).detach().cpu()
         r2 = torch.sigmoid(self.model.discriminate_noise(real2)).detach().cpu()
         f1 = torch.sigmoid(self.model.discriminate_noise(fake1)).detach().cpu()
@@ -312,6 +363,12 @@ class ControllerUNHD:
 
     @staticmethod
     def calculate_mean_probabs(e_probabs_dict):
+        """
+        calculates mean probabilities from epoch prob dictionary
+
+        :param e_probabs_dict:
+        :return:
+        """
         out = {'r1': None, 'r2': None, 'f1': None, 'f2': None}
 
         for k in out:

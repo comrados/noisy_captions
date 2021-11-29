@@ -241,7 +241,7 @@ def get_dataloaders(data_handler, ds_train, ds_train_clean, ds_query, ds_db):
     dataset_triplets = ds_train(*train_tuple, seed=cfg.seed, wrong_noise_caption_prob=cfg.wrong_noise_caption_prob)
     dataloader_train = DataLoader(dataset_triplets, batch_size=cfg.batch_size, shuffle=True)
 
-    # train dataloader clean
+    # train dataloader clean (clean dataset for meta-training)
     dataset_triplets = ds_train_clean(*train_tuple, seed=cfg.seed, clean_captions=cfg.clean_captions)
     dataloader_train_clean = DataLoader(dataset_triplets, batch_size=cfg.batch_size, shuffle=True)
 

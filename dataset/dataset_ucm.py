@@ -114,9 +114,8 @@ class DatasetDuplet1(AbstractDataset):
 
 class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
     """
-    Class for dataset representation.
-
-    Quadruplet dataset sample - img-img-txt-txt
+    Imitates the dataset with noisy captions (wrong captioning) by replacing txt features with other features
+    with probability wrong_noise_caption_prob
     """
 
     def __init__(self, images, captions, labels, idxs, captions_aug=None, images_aug=None, seed=42,
@@ -174,6 +173,13 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
         )
 
     def generate_wrong_caption_index(self, index):
+        """
+        for given caption with given index find a caption index of different label (wrong caption)
+
+        :param index:
+        :return:
+        """
+
         true_lab = self.labels[index]
 
         while True:
@@ -185,6 +191,12 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
         return new_idx
 
     def get_wrong_caption_indexes(self):
+        """
+        with probability wrong_noise_caption_prob for each caption finds a caption of different label
+
+        :return: list of indexes (with generated wrong ones), mask if index was replaced or not
+        """
+
         idxs = []
         idx_mask = []
         for i in range(len(self.images)):
@@ -207,9 +219,7 @@ class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaption(AbstractDataset):
 
 class DatasetQuadrupletAugmentedTxtImgNoiseWrongCaptionClean(AbstractDataset):
     """
-    Class for dataset representation.
-
-    Quadruplet dataset sample - img-img-txt-txt
+    Imitates the dataset with clean captions only (for the meta-learning)
     """
 
     def __init__(self, images, captions, labels, idxs, captions_aug=None, images_aug=None, seed=42, clean_captions=0.2):
