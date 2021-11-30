@@ -7,7 +7,7 @@ import torch
 from torch.nn.functional import one_hot
 from torch.optim import Adam, SGD, AdamW
 import random
-
+from matplotlib.ticker import AutoMinorLocator, MultipleLocator
 import time
 import os
 
@@ -142,27 +142,32 @@ class ControllerUNHD:
             import seaborn as sns
             import matplotlib.pyplot as plt
 
-            fig = plt.figure(figsize=(6, 6))
+            fig = plt.figure(figsize=(10, 10))
 
             ax = plt.subplot(1, 1, 1)
 
-            sns.distplot(weights_dict['w1_clean'], bins=25, label='clean_captions', ax=ax)
-            sns.distplot(weights_dict['w2_clean'], bins=25, label='clean_aug_captions', ax=ax)
-            sns.distplot(weights_dict['w1_noise'], bins=25, label='noisy_captions', ax=ax)
-            sns.distplot(weights_dict['w2_noise'], bins=25, label='noisy_aug_captions', ax=ax)
+            sns.distplot(weights_dict['w1_clean'], bins=25, color='blue', label='Clean pairs', ax=ax, kde_kws={"lw": 3})
+            sns.distplot(weights_dict['w2_clean'], bins=25, color='orange', label='Clean augmented pairs', ax=ax, kde_kws={"lw": 3})
+            sns.distplot(weights_dict['w1_noise'], bins=25, color='green', label='Noisy pairs', ax=ax, kde_kws={"lw": 3})
+            sns.distplot(weights_dict['w2_noise'], bins=25, color='red', label='Noisy augmented pairs', ax=ax, kde_kws={"lw": 3})
 
-            ax.set_xlabel('probability')
-            ax.set_ylabel('frequency')
+            plt.legend(fontsize=20)
+            ax.set_xlabel('Pair weights\n', size=20)
+            ax.set_ylabel('\nFrequency', size=20)
+            ax.xaxis.set_major_locator(MultipleLocator(0.1))
+            ax.grid(axis='both', which='major', alpha=0.8, linestyle='-')
+            ax.grid(axis='both', which='minor', alpha=0.4, linestyle=':')
+            ax.tick_params(axis='both', labelsize=16)
+            ax.set_xlim([0.0, 1.0])
 
-            plt.legend()
             noise = str(self.cfg.wrong_noise_caption_prob)
             clean = str(self.dataloader_quadruplets_clean.dataset.clean_captions)
-            plt.title(' '.join([self.cfg.dataset, 'noise level:', noise, 'clean sapmles: ', clean]))
+            # plt.title(' '.join([self.cfg.dataset, 'noise level:', noise, 'clean sapmles: ', clean]))
             plt.tight_layout()
 
-            print(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights)))
-            plt.savefig(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights)))
-            plt.savefig(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}.pdf'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights)))
+            print(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights, self.cfg.tag)))
+            plt.savefig(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}_{}.png'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights, self.cfg.tag)))
+            plt.savefig(os.path.join('plots', 'noise_distplot_{}_{}_{}_{}_{}.pdf'.format(self.cfg.dataset, noise, clean, self.cfg.noise_weights, self.cfg.tag)))
 
     @staticmethod
     def update_weights_dict(weights_dict, weights_meta_dict, w1, w2, noise, meta):

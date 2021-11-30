@@ -45,6 +45,5 @@ venv.bak/
 .idea
 
 checkpoints/*
-plots/*
 logs/*
 data/*RSICD*
