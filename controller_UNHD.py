@@ -1,5 +1,5 @@
 from models.UHND import UNHD
-from loss.contrastive_loss import NTXentLoss
+from loss.contrastive_loss import NTXentLossWeighted
 from utils import write_pickle, calc_map_k, calc_map_rad, pr_curve, p_top_k
 from utils import retrieval2png, bucket_hists, top_k_hists, hr_hists
 from torch import autograd
@@ -37,7 +37,7 @@ class ControllerUNHD:
 
         self.model = self.get_model()
         self.optimizer_gen, self.optimizer_dis = self.get_optimizers()
-        self.contr_loss = NTXentLoss()
+        self.contr_loss = NTXentLossWeighted()
 
     def init_hashes(self):
         """
@@ -609,7 +609,7 @@ class ControllerUNHD:
         map_k_10 = self.calc_maps_k(qBX, qBY, rBX, rBY, qLX, qLY, rLX, rLY, 10)
         map_k_20 = self.calc_maps_k(qBX, qBY, rBX, rBY, qLX, qLY, rLX, rLY, 20)
         map_r = self.calc_maps_rad(qBX, qBY, rBX, rBY, qLX, qLY, rLX, rLY, [0, 1, 2, 3, 4, 5])
-        p_at_k = self.calc_p_top_k(qBX, qBY, rBX, rBY, qLX, qLY, rLX, rLY)
+        p_at_k = None  # self.calc_p_top_k(qBX, qBY, rBX, rBY, qLX, qLY, rLX, rLY)
         maps_eval = (map_k_5, map_k_10, map_k_20, map_r, p_at_k)
 
         if self.cfg.build_plots:

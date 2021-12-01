@@ -7,7 +7,7 @@ parser.add_argument('--bit', default=64, help='hash bit', type=int)
 parser.add_argument('--model', default='UNHD', help='model type', type=str)
 parser.add_argument('--epochs', default=150, help='training epochs', type=int)
 parser.add_argument('--tag', default='test', help='model tag', type=str)
-parser.add_argument('--dataset', default='rsicd', help='ucm or rsicd', type=str)
+parser.add_argument('--dataset', default='ucm', help='ucm or rsicd', type=str)
 parser.add_argument('--preset', default='clean', help='data presets, see available in config.py', type=str)
 parser.add_argument('--alpha', default=0, help='alpha hyperparameter (La)', type=float)
 parser.add_argument('--beta', default=0.001, help='beta hyperparameter (Lq)', type=float)
@@ -19,9 +19,9 @@ parser.add_argument('--img-aug-emb', default=None, type=str, help='overrides aug
 parser.add_argument('--txt-aug-emb', default=None, type=str, help='overrides augmented text embeddings file (noise)')
 
 parser.add_argument('--noise-wrong-caption', default=.5, type=float, help="probability of 'wrong caption' noise")
-parser.add_argument('--clean-captions', default=.2, type=float, help="amount of free captions in dataset")
-parser.add_argument('--noise-weights', default='normal', type=str, choices=['normal', 'exp', 'dis', 'ones'], help="amount of free captions in dataset")
-parser.add_argument('--clean-epochs', default=75, help='number of clean epochs', type=int)
+parser.add_argument('--clean-captions', default=.2, type=float, help="size of the clean dataset for meta-training captions in dataset")
+parser.add_argument('--noise-weights', default='normal', type=str, choices=['normal', 'exp', 'dis', 'ones'], help="sample weight types: normal, exponential, discrete or 1")
+parser.add_argument('--clean-epochs', default=75, help='number of meta-training epochs', type=int)
 
 args = parser.parse_args()
 

@@ -5,7 +5,7 @@ from torch.nn import functional as F
 import math
 
 
-class NTXentLoss(nn.Module):
+class NTXentLossWeighted(nn.Module):
 
     """
     Normalized Temperature-scaled Cross-entropy Loss (NTXent Loss).
@@ -14,7 +14,7 @@ class NTXentLoss(nn.Module):
     """
 
     def __init__(self, temperature=1, eps=1e-6):
-        super(NTXentLoss, self).__init__()
+        super(NTXentLossWeighted, self).__init__()
         self.temperature = temperature
         self.eps = eps
 
