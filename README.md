@@ -1,11 +1,17 @@
-# Unsupervised Caption Noise Robust Cross-Modal Retrieval in Remote Sensing
+# CHNR: An Unsupervised Cross-Modal Hashing Method Robust to Noisy Training Image-Text Correspondences in Remote Sensing
 
-> Paper placeholder
+> G. Mikriukov, M. Ravanbakhsh, and B. Demіr, "An Unsupervised Cross-Modal Hashing Method Robust to Noisy Training Image-Text Correspondences in Remote Sensing", IEEE International Conference on Image Processing (ICIP), Bordeaux, France, 2022.
 
 If you use the code from this repository in your research, please cite the following paper:
 
 ```
-Bibtex placeholder
+@article{chnr2022,
+  title={An Unsupervised Cross-Modal Hashing Method Robust to Noisy Training Image-Text Correspondences in Remote Sensing},
+  author={G. {Mikriukov} and M. {Ravanbakhsh} and B. {Demіr}},
+  booktitle={IEEE International Conference on Image Processing (ICIP)},
+  year={2022}
+}
+
 ```
 
 ---
